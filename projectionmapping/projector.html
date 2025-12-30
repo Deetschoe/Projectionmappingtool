@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projector Display</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        #projectorCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        #projectorGifContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        #projectorGifContainer img {
+            position: absolute;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="projectorCanvas"></canvas>
+    <!-- GIF overlay container for animated GIFs in projector -->
+    <div id="projectorGifContainer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden;"></div>
+    <script>
+        // This will be populated by the main window
+        const projectorCanvas = document.getElementById('projectorCanvas');
+        const ctx = projectorCanvas.getContext('2d');
+        const projectorGifContainer = document.getElementById('projectorGifContainer');
+        
+        // Set canvas to full screen
+        function resizeCanvas() {
+            projectorCanvas.width = window.innerWidth;
+            projectorCanvas.height = window.innerHeight;
+        }
+        
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Store current state
+        let currentImageData = null;
+        let wallImage = null;
+        let shapes = [];
+        let canvasWidth = 1920;
+        let canvasHeight = 1080;
+        
+        // Listen for messages from main window
+        window.addEventListener('message', (event) => {
+            console.log('Projector received message:', event.data.type);
+            if (event.data.type === 'updateProjector') {
+                if (event.data.imageData) {
+                    currentImageData = event.data.imageData;
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    img.onload = () => {
+                        wallImage = img;
+                        drawProjector();
+                    };
+                    img.onerror = (e) => {
+                        console.error('Error loading image:', e);
+                    };
+                    img.src = event.data.imageData;
+                }
+                if (event.data.shapes) {
+                    shapes = event.data.shapes;
+                    console.log('Shapes received:', shapes.length);
+                    drawProjector();
+                }
+                if (event.data.canvasWidth) {
+                    canvasWidth = event.data.canvasWidth;
+                }
+                if (event.data.canvasHeight) {
+                    canvasHeight = event.data.canvasHeight;
+                }
+            }
+        });
+        
+        console.log('Projector window ready, waiting for messages...');
+        
+        function drawProjector() {
+            ctx.clearRect(0, 0, projectorCanvas.width, projectorCanvas.height);
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, projectorCanvas.width, projectorCanvas.height);
+            
+            // Clear all existing GIF overlays before redrawing
+            if (projectorGifContainer) {
+                projectorGifContainer.innerHTML = '';
+            }
+            
+            // Calculate scale to match editor canvas
+            const scaleX = projectorCanvas.width / canvasWidth;
+            const scaleY = projectorCanvas.height / canvasHeight;
+            const scale = Math.min(scaleX, scaleY);
+            
+            ctx.save();
+            ctx.scale(scale, scale);
+            ctx.translate((projectorCanvas.width / scale - canvasWidth) / 2, (projectorCanvas.height / scale - canvasHeight) / 2);
+            
+            // Draw wall image if available
+            if (wallImage) {
+                // Scale wall image to match canvas
+                const wallScale = Math.min(
+                    canvasWidth / wallImage.width,
+                    canvasHeight / wallImage.height
+                );
+                const x = (canvasWidth - wallImage.width * wallScale) / 2;
+                const y = (canvasHeight - wallImage.height * wallScale) / 2;
+                ctx.drawImage(wallImage, x, y, wallImage.width * wallScale, wallImage.height * wallScale);
+            }
+            
+            // Draw shapes
+            shapes.forEach(shape => {
+                if (!shape.visible && shape.effect !== 'pulse') return;
+                
+                ctx.save();
+                
+                let alpha = shape.opacity || 1;
+                if (shape.effect === 'pulse') {
+                    alpha *= (0.5 + 0.5 * Math.sin(shape.pulsePhase || 0));
+                }
+                ctx.globalAlpha = alpha;
+                
+                // No rotation - using corner pinning
+                ctx.fillStyle = shape.color || '#ffb6c1';
+                ctx.strokeStyle = shape.strokeColor || 'transparent';
+                ctx.lineWidth = shape.strokeWidth || 0;
+                
+                if (shape.type === 'rectangle') {
+                    if (shape.corners && shape.corners.length === 4) {
+                        ctx.beginPath();
+                        ctx.moveTo(shape.corners[0].x, shape.corners[0].y);
+                        ctx.lineTo(shape.corners[1].x, shape.corners[1].y);
+                        ctx.lineTo(shape.corners[2].x, shape.corners[2].y);
+                        ctx.lineTo(shape.corners[3].x, shape.corners[3].y);
+                        ctx.closePath();
+                        ctx.fill();
+                        if (shape.strokeWidth > 0) ctx.stroke();
+                    } else {
+                        ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+                        if (shape.strokeWidth > 0) ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+                    }
+                } else if (shape.type === 'circle') {
+                    ctx.beginPath();
+                    ctx.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    if (shape.strokeWidth > 0) ctx.stroke();
+                } else if (shape.type === 'polygon') {
+                    ctx.beginPath();
+                    for (let i = 0; i < shape.sides; i++) {
+                        const angle = (Math.PI * 2 * i) / shape.sides + (shape.flowOffset || 0);
+                        const x = shape.x + Math.cos(angle) * shape.radius;
+                        const y = shape.y + Math.sin(angle) * shape.radius;
+                        if (i === 0) {
+                            ctx.moveTo(x, y);
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    if (shape.strokeWidth > 0) ctx.stroke();
+                } else if (shape.type === 'path' && shape.points && shape.points.length > 0) {
+                    ctx.strokeStyle = shape.strokeColor || shape.color || '#000000';
+                    ctx.lineWidth = shape.strokeWidth || 5;
+                    ctx.beginPath();
+                    shape.points.forEach((point, i) => {
+                        if (i === 0) {
+                            ctx.moveTo(point.x, point.y);
+                        } else {
+                            ctx.lineTo(point.x, point.y);
+                        }
+                    });
+                    if (shape.points.length > 2) {
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                    ctx.stroke();
+                } else if (shape.type === 'image' && shape.imageData) {
+                    // Handle GIFs with HTML overlay
+                    if (shape.isGif && projectorGifContainer) {
+                        // Create or update an HTML <img> element for animated GIFs
+                        let gifElement = document.getElementById(`gif-${shape.id}`);
+                        if (!gifElement) {
+                            gifElement = document.createElement('img');
+                            gifElement.id = `gif-${shape.id}`;
+                            gifElement.style.position = 'absolute';
+                            gifElement.style.pointerEvents = 'none';
+                            gifElement.style.objectFit = 'contain';
+                            projectorGifContainer.appendChild(gifElement);
+                        }
+                        gifElement.src = shape.imageData;
+                        gifElement.style.opacity = (shape.opacity || 1) * alpha;
+                        gifElement.style.display = shape.visible ? 'block' : 'none';
+                        // Apply blend mode for GIF overlay
+                        if (shape.blendMode && shape.blendMode !== 'normal') {
+                            gifElement.style.mixBlendMode = shape.blendMode;
+                        } else {
+                            gifElement.style.mixBlendMode = 'normal';
+                        }
+
+                        // Calculate position and size for the GIF overlay
+                        let displayX, displayY, displayWidth, displayHeight;
+                        const offsetX = (projectorCanvas.width / scale - canvasWidth) / 2 * scale;
+                        const offsetY = (projectorCanvas.height / scale - canvasHeight) / 2 * scale;
+
+                        if (shape.corners && shape.corners.length === 4) {
+                            // For warped GIFs, calculate bounding box of warped corners
+                            const transformedCorners = shape.corners.map(c => ({
+                                x: (c.x * scale) + offsetX,
+                                y: (c.y * scale) + offsetY
+                            }));
+
+                            const minX = Math.min(...transformedCorners.map(c => c.x));
+                            const maxX = Math.max(...transformedCorners.map(c => c.x));
+                            const minY = Math.min(...transformedCorners.map(c => c.y));
+                            const maxY = Math.max(...transformedCorners.map(c => c.y));
+
+                            displayX = minX;
+                            displayY = minY;
+                            displayWidth = maxX - minX;
+                            displayHeight = maxY - minY;
+
+                            // Apply CSS transform for positioning
+                            gifElement.style.transform = `translate(${displayX}px, ${displayY}px)`;
+                        } else {
+                            // For non-warped GIFs, use x, y, width, height
+                            displayX = (shape.x * scale) + offsetX;
+                            displayY = (shape.y * scale) + offsetY;
+                            displayWidth = shape.width * scale;
+                            displayHeight = shape.height * scale;
+                            gifElement.style.transform = `translate(${displayX}px, ${displayY}px)`;
+                        }
+                        
+                        gifElement.style.width = displayWidth + 'px';
+                        gifElement.style.height = displayHeight + 'px';
+
+                        // Skip canvas drawing for GIFs
+                        ctx.restore();
+                        return;
+                    }
+                    
+                    // Draw static images on canvas
+                    if (shape.corners && shape.corners.length === 4) {
+                        // Load image if needed
+                        if (!shape._image) {
+                            const img = new Image();
+                            img.src = shape.imageData;
+                            shape._image = img;
+                        }
+                        
+                        if (shape._image.complete) {
+                            ctx.save();
+                            // Apply blend mode if specified
+                            if (shape.blendMode && shape.blendMode !== 'normal') {
+                                ctx.globalCompositeOperation = shape.blendMode;
+                            }
+                            ctx.beginPath();
+                            ctx.moveTo(shape.corners[0].x, shape.corners[0].y);
+                            ctx.lineTo(shape.corners[1].x, shape.corners[1].y);
+                            ctx.lineTo(shape.corners[2].x, shape.corners[2].y);
+                            ctx.lineTo(shape.corners[3].x, shape.corners[3].y);
+                            ctx.closePath();
+                            ctx.clip();
+                            
+                            const minX = Math.min(shape.corners[0].x, shape.corners[1].x, shape.corners[2].x, shape.corners[3].x);
+                            const maxX = Math.max(shape.corners[0].x, shape.corners[1].x, shape.corners[2].x, shape.corners[3].x);
+                            const minY = Math.min(shape.corners[0].y, shape.corners[1].y, shape.corners[2].y, shape.corners[3].y);
+                            const maxY = Math.max(shape.corners[0].y, shape.corners[1].y, shape.corners[2].y, shape.corners[3].y);
+                            
+                            ctx.drawImage(shape._image, minX, minY, maxX - minX, maxY - minY);
+                            ctx.restore();
+                        }
+                    } else {
+                        if (!shape._image) {
+                            const img = new Image();
+                            img.src = shape.imageData;
+                            shape._image = img;
+                        }
+                        if (shape._image && shape._image.complete) {
+                            ctx.save();
+                            // Apply blend mode if specified
+                            if (shape.blendMode && shape.blendMode !== 'normal') {
+                                ctx.globalCompositeOperation = shape.blendMode;
+                            }
+                            ctx.drawImage(shape._image, shape.x, shape.y, shape.width, shape.height);
+                            ctx.restore();
+                        }
+                    }
+                } else if (shape.type === 'youtube' && shape.videoId) {
+                    if (shape.corners && shape.corners.length === 4) {
+                        ctx.fillStyle = '#000';
+                        ctx.beginPath();
+                        ctx.moveTo(shape.corners[0].x, shape.corners[0].y);
+                        ctx.lineTo(shape.corners[1].x, shape.corners[1].y);
+                        ctx.lineTo(shape.corners[2].x, shape.corners[2].y);
+                        ctx.lineTo(shape.corners[3].x, shape.corners[3].y);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.fillStyle = '#fff';
+                        ctx.font = '14px Inter';
+                        ctx.textAlign = 'center';
+                        const centerX = (shape.corners[0].x + shape.corners[1].x + shape.corners[2].x + shape.corners[3].x) / 4;
+                        const centerY = (shape.corners[0].y + shape.corners[1].y + shape.corners[2].y + shape.corners[3].y) / 4;
+                        ctx.fillText('YouTube', centerX, centerY);
+                    } else {
+                        ctx.fillStyle = '#000';
+                        ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+                        ctx.fillStyle = '#fff';
+                        ctx.font = '14px Inter';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('YouTube', shape.x + shape.width / 2, shape.y + shape.height / 2);
+                    }
+                }
+                
+                ctx.restore();
+            });
+            
+            ctx.restore();
+        }
+        
+        // Animate projector
+        function animateProjector() {
+            requestAnimationFrame(() => {
+                // Update flow animations
+                shapes.forEach(shape => {
+                    if (shape.effect === 'flow') {
+                        shape.flowOffset += 0.02;
+                    }
+                    if (shape.effect === 'pulse') {
+                        shape.pulsePhase += 0.1;
+                    }
+                });
+                drawProjector();
+                animateProjector();
+            });
+        }
+        animateProjector();
+        
+        // Request fullscreen
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen();
+        }
+    </script>
+</body>
+</html>
+

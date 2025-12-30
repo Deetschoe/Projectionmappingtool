@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projection Mapping Tool</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dark-mode">
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-tools">
+                <button id="selectToolBtn" class="btn btn-tool" title="Select Tool (V)">Select</button>
+                <button id="scaleToolBtn" class="btn btn-tool" title="Scale Tool (S)">Scale</button>
+                <button id="penToolBtn" class="btn btn-tool" title="Pen Tool (P)">Pen</button>
+                <div class="tool-separator"></div>
+                <button id="addRectBtn" class="btn btn-tool" title="Rectangle">Rect</button>
+                <button id="addCircleBtn" class="btn btn-tool" title="Circle">Circle</button>
+                <button id="addImageBtn" class="btn btn-tool" title="Add Image">Image</button>
+                <div class="tool-separator"></div>
+                <button id="undoBtn" class="btn btn-tool" title="Undo (⌘+Z)">Undo</button>
+                <button id="redoBtn" class="btn btn-tool" title="Redo (⌘+Shift+Z)">Redo</button>
+            </div>
+            <div class="header-controls">
+                <button id="saveProjectBtn" class="btn btn-secondary" title="Save Project">Save</button>
+                <button id="loadProjectBtn" class="btn btn-secondary" title="Load Project">Load</button>
+                <input type="file" id="loadProjectInput" accept=".json" style="display: none;">
+                <button id="openProjectorBtn" class="btn btn-primary">Projector</button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Left Panel: Shapes List -->
+            <aside class="left-panel">
+                <div class="panel-section">
+                    <h3>Layers</h3>
+                    <div id="shapesList" class="shapes-list"></div>
+                </div>
+                
+                <div class="panel-section">
+                    <h3>Audio Mode</h3>
+                    <label class="toggle-label">
+                        <input type="checkbox" id="audioModeToggle">
+                        <span>Audio Reactive</span>
+                    </label>
+                    <div id="audioControls" style="display: none; margin-top: 0.75rem;">
+                        <label class="property-label">
+                            <span class="property-name">React To:</span>
+                            <select id="audioReactTo" class="effect-select">
+                                <option value="color">Color</option>
+                                <option value="opacity">Opacity</option>
+                                <option value="size">Size</option>
+                                <option value="rotation">Rotation</option>
+                                <option value="flow">Flow Speed</option>
+                            </select>
+                        </label>
+                        <div id="audioColorOptions" class="audio-color-options">
+                            <label class="property-label">
+                                <span class="property-name">Color Mode:</span>
+                                <select id="audioColorMode" class="effect-select">
+                                    <option value="rainbow">Rainbow</option>
+                                    <option value="custom">Custom Color</option>
+                                    <option value="preset1">Red/Orange</option>
+                                    <option value="preset2">Blue/Purple</option>
+                                    <option value="preset3">Green/Teal</option>
+                                </select>
+                            </label>
+                            <label class="property-label" id="audioCustomColorLabel" style="display: none;">
+                                <span class="property-name">Custom Color:</span>
+                                <input type="color" id="audioCustomColor" value="#ff0000">
+                            </label>
+                        </div>
+                    </div>
+                    <div id="audioVisualizer" class="audio-visualizer">
+                        <canvas id="audioCanvas"></canvas>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Center: Canvas Editor -->
+            <main class="canvas-area">
+                <div class="canvas-container" id="canvasContainer">
+                    <canvas id="editorCanvas" tabindex="0"></canvas>
+                    <!-- GIF overlay container for animated GIFs -->
+                    <div id="gifOverlayContainer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden;"></div>
+                </div>
+            </main>
+
+            <!-- Right Panel: Properties -->
+            <aside class="right-panel">
+                <div class="panel-section">
+                    <h3>Properties</h3>
+                    <div id="shapeProperties" class="shape-properties" style="display: none;">
+                        <label class="property-label">
+                            <span class="property-name">Keybind</span>
+                            <input type="text" id="keybindInput" class="keybind-input" placeholder="Press key...">
+                        </label>
+                        
+                        <label class="property-label">
+                            <span class="property-name">Effect</span>
+                            <select id="effectSelect" class="effect-select">
+                                <option value="hide">Hide/Show</option>
+                                <option value="pulse">Pulse</option>
+                                <option value="color">Color Change</option>
+                                <option value="flow">Flow</option>
+                                <option value="glow">Glow</option>
+                                <option value="blur">Blur</option>
+                            </select>
+                        </label>
+                        
+                        <label class="property-label">
+                            <span class="property-name">Audio Reactive</span>
+                            <input type="checkbox" id="audioReactiveToggle">
+                        </label>
+                        
+                        <label class="property-label">
+                            <span class="property-name">Fill Color</span>
+                            <input type="color" id="colorInput" value="#ff0000">
+                        </label>
+                        
+                        <label class="property-label">
+                            <span class="property-name">Stroke Color</span>
+                            <input type="color" id="strokeColorInput" value="#000000">
+                        </label>
+                        
+                        <label class="property-label">
+                            <span class="property-name">Stroke Width</span>
+                            <input type="range" id="strokeWidthInput" min="0" max="20" value="0">
+                            <span id="strokeWidthValue">0</span>
+                        </label>
+                        
+                        <label class="property-label">
+                            <span class="property-name">Opacity</span>
+                            <input type="range" id="opacityInput" min="0" max="100" value="100">
+                            <span id="opacityValue">100%</span>
+                        </label>
+                        
+                        <div id="imageProperties" class="image-props" style="display: none;">
+                            <label class="property-label">
+                                <span class="property-name">Blend Mode</span>
+                                <select id="blendModeSelect" class="effect-select">
+                                    <option value="normal">Normal</option>
+                                    <option value="screen">Screen</option>
+                                    <option value="multiply">Multiply</option>
+                                    <option value="overlay">Overlay</option>
+                                    <option value="soft-light">Soft Light</option>
+                                    <option value="hard-light">Hard Light</option>
+                                    <option value="color-dodge">Color Dodge</option>
+                                    <option value="color-burn">Color Burn</option>
+                                    <option value="darken">Darken</option>
+                                    <option value="lighten">Lighten</option>
+                                    <option value="difference">Difference</option>
+                                    <option value="exclusion">Exclusion</option>
+                                </select>
+                            </label>
+                        </div>
+                        
+                        <div id="penToolProperties" class="pen-tool-props" style="display: none;">
+                            <label class="property-label">
+                                <span class="property-name">Pen Width</span>
+                                <input type="range" id="penWidthInput" min="1" max="50" value="5">
+                                <span id="penWidthValue">5</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+            
+            <!-- Bottom Right: Image Dialog -->
+            <div id="imageDialog" class="image-dialog" style="display: none;">
+                <div class="dialog-content">
+                    <h3>Add Image</h3>
+                    <div class="image-dialog-options">
+                        <button id="uploadImageBtn" class="btn btn-primary">Upload Image</button>
+                        <button id="searchImageBtn" class="btn btn-secondary">Search Stock Images</button>
+                        <input type="file" id="imageFileInput" accept="image/*,.gif" style="display: none;">
+                        <p class="image-hint">Or press Ctrl+V (Cmd+V on Mac) to paste an image</p>
+                    </div>
+                    <div class="dialog-buttons">
+                        <button id="cancelImageBtn" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="audio.js"></script>
+    <script src="projector.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
+

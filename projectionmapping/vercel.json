@@ -1,0 +1,9 @@
+{
+  "rewrites": [
+    {
+      "source": "/projector",
+      "destination": "/projector.html"
+    }
+  ]
+}
+
