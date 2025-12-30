@@ -1,0 +1,25 @@
+# Ignore everything in Developer directory
+*
+
+# But allow .gitignore itself
+!.gitignore
+
+# Except projectionmapping project
+!projectionmapping/
+projectionmapping/*
+!projectionmapping/.gitignore
+!projectionmapping/DEPLOY.md
+!projectionmapping/QUICKSTART.md
+!projectionmapping/README.md
+!projectionmapping/css/
+projectionmapping/css/*
+!projectionmapping/css/styles.css
+!projectionmapping/index.html
+!projectionmapping/js/
+projectionmapping/js/*
+!projectionmapping/js/audio.js
+!projectionmapping/js/main.js
+!projectionmapping/js/projector.js
+!projectionmapping/projector.html
+!projectionmapping/start.sh
+!projectionmapping/vercel.json
