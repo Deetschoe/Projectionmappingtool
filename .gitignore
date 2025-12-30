@@ -1,8 +1,9 @@
 # Ignore everything in Developer directory
 *
 
-# But allow .gitignore itself
+# But allow .gitignore and vercel.json
 !.gitignore
+!vercel.json
 
 # Except projectionmapping project
 !projectionmapping/

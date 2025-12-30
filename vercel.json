@@ -1,0 +1,11 @@
+{
+  "buildCommand": null,
+  "outputDirectory": "projectionmapping",
+  "rewrites": [
+    {
+      "source": "/projector",
+      "destination": "/projector.html"
+    }
+  ]
+}
+
